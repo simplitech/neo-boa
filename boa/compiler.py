@@ -52,8 +52,7 @@ class Compiler(object):
         """
         return self.entry_module
 
-    @staticmethod
-    def write_file(data, path):
+    def write_file(self, data, path):
         """
         Save the output data to the file system at the specified path.
 
@@ -76,7 +75,7 @@ class Compiler(object):
         return out_bytes
 
     @staticmethod
-    def load_and_save(path, output_path=None, use_nep8=True):
+    def load_and_save(path, output_path=None, use_nep8=True, neo_version='2.9.0'):
         """
         Call `load_and_save` to load a Python file to be compiled to the .avm format and save the result.
         By default, the resultant .avm file is saved along side the source file.
@@ -94,22 +93,14 @@ class Compiler(object):
             Compiler.load_and_save('path/to/your/file.py')
         """
 
-        compiler = Compiler.load(os.path.abspath(path), use_nep8=use_nep8)
-        data = compiler.write()
-        if output_path is None:
-            fullpath = os.path.realpath(path)
-            path, filename = os.path.split(fullpath)
-            newfilename = filename.replace('.py', '.avm')
-            output_path = '%s/%s' % (path, newfilename)
-
-        Compiler.write_file(data, output_path)
-        compiler.entry_module.export_debug(output_path)
-        compiler.entry_module.export_abi_json(output_path)
+        compiler = Compiler.load(os.path.abspath(path), use_nep8=use_nep8, neo_version=neo_version)
+        from boa.code.version import Version
+        data = Version.compiler.save(compiler, path, output_path=output_path)
 
         return data
 
     @staticmethod
-    def load(path, use_nep8=True):
+    def load(path, use_nep8=True, neo_version='2.9.0'):
         """
         Call `load` to load a Python file to be compiled but not to write to .avm
 
@@ -126,8 +117,11 @@ class Compiler(object):
         """
 
         Compiler.__instance = None
-
         compiler = Compiler.instance()
+
+        from boa.code.version import Version
+        Version.init(neo_version)
+
         compiler.nep8 = use_nep8
         compiler.entry_module = Module(path)
 

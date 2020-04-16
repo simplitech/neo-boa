@@ -1,8 +1,10 @@
+import abc
 from collections import OrderedDict
-from boa.interop import VMOp
+from boa.interop import VMOp, Neo3VMOp
 from boa.interop.BigInteger import BigInteger
 from bytecode import Label
 from boa.code.pyop import *
+
 NEO_SC_FRAMEWORK = 'boa.interop.'
 
 
@@ -52,7 +54,7 @@ class VMToken(object):
         self.is_annotation = False
 
 
-class VMTokenizer(object):
+class ITokenizer(abc.ABC):
     """
 
     """
@@ -71,6 +73,192 @@ class VMTokenizer(object):
 
         self.method_begin_items()
 
+    @abc.abstractmethod
+    def method_begin_items(self):
+        pass
+
+    @abc.abstractmethod
+    def method_end_items(self):
+        pass
+
+    @abc.abstractmethod
+    def insert_vm_token_at(self, vm_token, index):
+        pass
+
+    @abc.abstractmethod
+    def insert1(self, vm_op, data=None):
+        pass
+
+    @abc.abstractmethod
+    def insert_push_data(self, data):
+        pass
+
+    @abc.abstractmethod
+    def insert_push_integer(self, i):
+        pass
+
+    @abc.abstractmethod
+    def convert1(self, vm_op, py_token=None, data=None):
+        pass
+
+    @abc.abstractmethod
+    def convert_new_array(self, py_token=None):
+        pass
+
+    @abc.abstractmethod
+    def convert_dup_top_two(self, py_token=None):
+        pass
+
+    @abc.abstractmethod
+    def convert_pop_jmp_if(self, pytoken):
+        pass
+
+    @abc.abstractmethod
+    def convert_load_const(self, pytoken):
+        pass
+
+    @abc.abstractmethod
+    def convert_push_data(self, data, py_token=None):
+        pass
+
+    @abc.abstractmethod
+    def convert_push_integer(self, i, py_token=None):
+        pass
+
+    @abc.abstractmethod
+    def convert_store_local(self, py_token):
+        pass
+
+    @abc.abstractmethod
+    def convert_load_local(self, py_token, name=None):
+        pass
+
+    @abc.abstractmethod
+    def convert_store_subscr(self, pytoken):
+        pass
+
+    @abc.abstractmethod
+    def convert_load_parameter(self, arg, position):
+        pass
+
+    @abc.abstractmethod
+    def convert_built_in_list(self, pytoken):
+        pass
+
+    @abc.abstractmethod
+    def convert_build_slice(self, pytoken):
+        pass
+
+    @abc.abstractmethod
+    def convert_method_call(self, pytoken):
+        pass
+
+    @abc.abstractmethod
+    def convert_default_call(self, pytoken, param_len):
+        pass
+
+    @staticmethod
+    def is_op_call(op):
+        """
+
+        :param op:
+        :return:
+        """
+        if op in ['len', 'abs', 'min', 'max', 'concat', 'take', 'substr',
+                  'reverse', 'append', 'remove', 'keys', 'values', 'has_key',
+                  'sha1', 'sha256', 'hash160', 'hash256', 'breakpoint',
+                  'verify_signature',
+                  'Exception', 'throw_if_null', ]:
+            return True
+        return False
+
+    @abc.abstractmethod
+    def convert_op_call(self, op, pytoken=None):
+        pass
+
+    @staticmethod
+    def is_sys_call(op):
+        """
+
+        :param op:
+        :return:
+        """
+        if op is not None and NEO_SC_FRAMEWORK in op:
+            return True
+        return False
+
+    @abc.abstractmethod
+    def convert_sys_call(self, op, pytoken=None):
+        pass
+
+    @abc.abstractmethod
+    def convert_tx_type(self, op, pytoken=None):
+        pass
+
+    @staticmethod
+    def is_built_in(op):
+        """
+
+        :param op:
+        :return:
+        """
+        if op in ['zip', 'type', 'tuple', 'super', 'str', 'slice',
+                  'set', 'reversed', 'property', 'memoryview',
+                  'map', 'list', 'frozenset', 'float', 'filter',
+                  'enumerate', 'dict', 'divmod', 'complex', 'bytes', 'bytearray', 'bool',
+                  'int', 'vars', 'sum', 'sorted', 'round', 'setattr', 'getattr',
+                  'rep', 'quit', 'print', 'pow', 'ord', 'oct', 'next', 'locals', 'license',
+                  'iter', 'isinstance', 'issubclass', 'input', 'id', 'hex',
+                  'help', 'hash', 'hasattr', 'globals', 'format', 'exit',
+                  'exec', 'eval', 'dir', 'deleteattr', 'credits', 'copyright',
+                  'compile', 'chr', 'callable', 'bin', 'ascii', 'any', 'all', ]:
+            return True
+
+        return False
+
+    @abc.abstractmethod
+    def convert_built_in(self, op, pytoken):
+        pass
+
+    def is_notify_event(self, pytoken):
+        """
+
+        :param pytoken:
+        :return:
+        """
+        name = pytoken.func_name
+        for action in self.method.module.actions:
+            if action.method_name == name:
+                return True
+        return False
+
+    @abc.abstractmethod
+    def convert_notify_event(self, pytoken):
+        pass
+
+    def is_smart_contract_call(self, pytoken):
+        """
+
+        :param pytoken:
+        :return:
+        """
+        name = pytoken.func_name
+
+        if name == 'DynamicAppCall':
+            pytoken.is_dynamic_appcall = True
+            return True
+
+        for appcall in self.method.module.app_call_registrations:
+            if appcall.method_name == name:
+                return True
+        return False
+
+    @abc.abstractmethod
+    def convert_smart_contract_call(self, pytoken, param_len):
+        pass
+
+
+class Neo2VMTokenizer(ITokenizer):
     def method_begin_items(self):
 
         # we just need to inssert the total number of arguments + body variables
@@ -488,21 +676,6 @@ class VMTokenizer(object):
         vmtoken.target_method = pytoken.func_name
         return vmtoken
 
-    @staticmethod
-    def is_op_call(op):
-        """
-
-        :param op:
-        :return:
-        """
-        if op in ['len', 'abs', 'min', 'max', 'concat', 'take', 'substr',
-                  'reverse', 'append', 'remove', 'keys', 'values', 'has_key',
-                  'sha1', 'sha256', 'hash160', 'hash256', 'breakpoint',
-                  'verify_signature',
-                  'Exception', 'throw_if_null', ]:
-            return True
-        return False
-
     def convert_op_call(self, op, pytoken=None):
         """
 
@@ -554,17 +727,6 @@ class VMTokenizer(object):
             pytoken.is_breakpoint = True
             return self.convert1(VMOp.NOP, pytoken)
         return None
-
-    @staticmethod
-    def is_sys_call(op):
-        """
-
-        :param op:
-        :return:
-        """
-        if op is not None and NEO_SC_FRAMEWORK in op:
-            return True
-        return False
 
     def convert_sys_call(self, op, pytoken=None):
         """
@@ -629,27 +791,6 @@ class VMTokenizer(object):
         elif 'StateTransaction' in op:
             return self.convert_push_data(bytearray(b'\x90'), pytoken)
 
-    @staticmethod
-    def is_built_in(op):
-        """
-
-        :param op:
-        :return:
-        """
-        if op in ['zip', 'type', 'tuple', 'super', 'str', 'slice',
-                  'set', 'reversed', 'property', 'memoryview',
-                  'map', 'list', 'frozenset', 'float', 'filter',
-                  'enumerate', 'dict', 'divmod', 'complex', 'bytes', 'bytearray', 'bool',
-                  'int', 'vars', 'sum', 'sorted', 'round', 'setattr', 'getattr',
-                  'rep', 'quit', 'print', 'pow', 'ord', 'oct', 'next', 'locals', 'license',
-                  'iter', 'isinstance', 'issubclass', 'input', 'id', 'hex',
-                  'help', 'hash', 'hasattr', 'globals', 'format', 'exit',
-                  'exec', 'eval', 'dir', 'deleteattr', 'credits', 'copyright',
-                  'compile', 'chr', 'callable', 'bin', 'ascii', 'any', 'all', ]:
-            return True
-
-        return False
-
     def convert_built_in(self, op, pytoken):
         """
 
@@ -680,18 +821,6 @@ class VMTokenizer(object):
 
         raise NotImplementedError(
             "[Compilation error] Built in %s is not implemented" % op)
-
-    def is_notify_event(self, pytoken):
-        """
-
-        :param pytoken:
-        :return:
-        """
-        name = pytoken.func_name
-        for action in self.method.module.actions:
-            if action.method_name == name:
-                return True
-        return False
 
     def convert_notify_event(self, pytoken):
         """
@@ -724,23 +853,6 @@ class VMTokenizer(object):
 #        self.insert1(VMOp.NOP)
 
         return vmtoken
-
-    def is_smart_contract_call(self, pytoken):
-        """
-
-        :param pytoken:
-        :return:
-        """
-        name = pytoken.func_name
-
-        if name == 'DynamicAppCall':
-            pytoken.is_dynamic_appcall = True
-            return True
-
-        for appcall in self.method.module.app_call_registrations:
-            if appcall.method_name == name:
-                return True
-        return False
 
     def convert_smart_contract_call(self, pytoken, param_len):
         """
@@ -775,7 +887,7 @@ class VMTokenizer(object):
         return vmtoken
 
 
-class Nep8VMTokenizer(VMTokenizer):
+class Nep8VMTokenizer(Neo2VMTokenizer):
 
     def convert_default_call(self, pytoken, param_len):
         # for NEP8 we need to add in the num params and the return count for the method call
@@ -820,3 +932,87 @@ class Nep8VMTokenizer(VMTokenizer):
             VMOp.CALL_E, py_token=pytoken, data=appcall_data)
 
         return vmtoken
+
+
+class Neo3VMTokenizer(ITokenizer):
+    # TODO: Check all the differences between Neo 2 VM and Neo 3 VM
+    def method_begin_items(self):
+        pass
+
+    def method_end_items(self):
+        pass
+
+    def insert_vm_token_at(self, vm_token, index):
+        pass
+
+    def insert1(self, vm_op, data=None):
+        pass
+
+    def insert_push_data(self, data):
+        pass
+
+    def insert_push_integer(self, i):
+        pass
+
+    def convert1(self, vm_op, py_token=None, data=None):
+        pass
+
+    def convert_new_array(self, py_token=None):
+        pass
+
+    def convert_dup_top_two(self, py_token=None):
+        pass
+
+    def convert_pop_jmp_if(self, pytoken):
+        pass
+
+    def convert_load_const(self, pytoken):
+        pass
+
+    def convert_push_data(self, data, py_token=None):
+        pass
+
+    def convert_push_integer(self, i, py_token=None):
+        pass
+
+    def convert_store_local(self, py_token):
+        pass
+
+    def convert_load_local(self, py_token, name=None):
+        pass
+
+    def convert_store_subscr(self, pytoken):
+        pass
+
+    def convert_load_parameter(self, arg, position):
+        pass
+
+    def convert_built_in_list(self, pytoken):
+        pass
+
+    def convert_build_slice(self, pytoken):
+        pass
+
+    def convert_method_call(self, pytoken):
+        pass
+
+    def convert_default_call(self, pytoken, param_len):
+        pass
+
+    def convert_op_call(self, op, pytoken=None):
+        pass
+
+    def convert_sys_call(self, op, pytoken=None):
+        pass
+
+    def convert_tx_type(self, op, pytoken=None):
+        pass
+
+    def convert_built_in(self, op, pytoken):
+        pass
+
+    def convert_notify_event(self, pytoken):
+        pass
+
+    def convert_smart_contract_call(self, pytoken, param_len):
+        pass
