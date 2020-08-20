@@ -33,7 +33,7 @@ class BoaTest(WalletFixtureTestCase):
     @classmethod
     def setUpClass(cls):
 
-        cls.dirname = '/'.join(os.path.abspath(__file__).split('/')[:-3])
+        cls.dirname = '/'.join(os.path.abspath(__file__).split(os.sep)[:-3])
 
         super(BoaTest, cls).setUpClass()
 
@@ -99,7 +99,8 @@ class BoaFixtureTest(WalletFixtureTestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.dirname = '/'.join(os.path.abspath(__file__).split('/')[:-3])
+
+        cls.dirname = '/'.join(os.path.abspath(__file__).split(os.sep)[:-3])
 
         super(BoaFixtureTest, cls).setUpClass()
 
